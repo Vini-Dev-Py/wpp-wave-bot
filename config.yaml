@@ -1,0 +1,5 @@
+# Default configuration for wpp-wave-bot
+rabbitmq_url: amqp://guest:guest@rabbitmq:5672/
+database_url: postgres://postgres:postgres@db:5432/wppwave?sslmode=disable
+http_addr: ":8080"
+
