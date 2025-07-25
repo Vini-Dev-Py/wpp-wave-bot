@@ -266,7 +266,7 @@ func (s *Service) sendMessage(ctx context.Context, cli *whatsmeow.Client, m *Out
 	case "text":
 		msg = &waProto.Message{Conversation: proto.String(m.Message)}
 	case "image":
-		data, err := download(m.MediaURL)
+		data, err := download(ctx, m.MediaURL)
 		if err != nil {
 			return err
 		}
@@ -285,7 +285,7 @@ func (s *Service) sendMessage(ctx context.Context, cli *whatsmeow.Client, m *Out
 			FileLength:    &up.FileLength,
 		}}
 	case "audio":
-		data, err := download(m.MediaURL)
+		data, err := download(ctx, m.MediaURL)
 		if err != nil {
 			return err
 		}
@@ -303,7 +303,7 @@ func (s *Service) sendMessage(ctx context.Context, cli *whatsmeow.Client, m *Out
 			FileLength:    &up.FileLength,
 		}}
 	case "document":
-		data, err := download(m.MediaURL)
+		data, err := download(ctx, m.MediaURL)
 		if err != nil {
 			return err
 		}
@@ -346,11 +346,18 @@ func (s *Service) publishSessionEvent(companyID, status, code string) {
 	}
 }
 
-func download(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+func download(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
 	return io.ReadAll(resp.Body)
 }
