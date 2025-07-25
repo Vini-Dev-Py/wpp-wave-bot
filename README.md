@@ -76,3 +76,53 @@ Example payload for `/messages`:
   "message": "Olá"
 }
 ```
+
+### Message body examples
+
+Below are some examples of bodies that can be sent to `/messages` for different message types.
+
+**Text**
+
+```json
+{
+  "company_id": "empresa-123",
+  "type": "text",
+  "to": "5511999999999@c.us",
+  "message": "Olá"
+}
+```
+
+**Image**
+
+```json
+{
+  "company_id": "empresa-123",
+  "type": "image",
+  "to": "5511999999999@c.us",
+  "message": "Foto de teste",
+  "media_url": "https://example.com/image.jpg"
+}
+```
+
+**Audio**
+
+```json
+{
+  "company_id": "empresa-123",
+  "type": "audio",
+  "to": "5511999999999@c.us",
+  "media_url": "https://example.com/audio.ogg"
+}
+```
+
+**Document**
+
+```json
+{
+  "company_id": "empresa-123",
+  "type": "document",
+  "to": "5511999999999@c.us",
+  "media_url": "https://example.com/file.pdf",
+  "filename": "arquivo.pdf"
+}
+```
