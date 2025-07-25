@@ -1,0 +1,13 @@
+Implemented:
+- Basic project structure with cmd, internal packages, migrations, Dockerfile.
+- RabbitMQ wrapper and WhatsApp service using whatsmeow.
+- Database connection, migrations and seed helper.
+- Docker Compose configuration with Postgres and RabbitMQ.
+- Session management with QR code authentication.
+- Message persistence, contact and group repositories, media upload.
+- Admin HTTP API and session event hooks.
+- HTTP endpoints for connecting and sending messages.
+- Added Makefile with common commands.
+
+Pending:
+# none
