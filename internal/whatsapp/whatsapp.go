@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/rs/zerolog/log"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -208,6 +209,8 @@ func (s *Service) eventHandler(companyID string, cli *whatsmeow.Client) func(evt
 		switch v := evt.(type) {
 		case *waEvents.Message:
 			s.handleIncoming(companyID, cli, v)
+		case *waEvents.Receipt:
+			s.handleReceipt(companyID, v)
 		case *waEvents.Disconnected:
 			log.Warn().Str("company_id", companyID).Msg("client disconnected")
 			s.publishSessionEvent(companyID, "disconnected", "")
@@ -237,10 +240,23 @@ func (s *Service) handleIncoming(companyID string, cli *whatsmeow.Client, evt *w
 		msgType = "other"
 	}
 
-	_ = s.msgRepo.Save(context.Background(), companyID, string(evt.Info.ID), evt.Info.Sender.String(), evt.Info.Chat.String(), msgType, content)
-	_ = s.contactRepo.Upsert(context.Background(), companyID, evt.Info.Sender.String(), evt.Info.PushName, "")
+	payloadBytes, _ := protojson.Marshal(evt.RawMessage)
+	_ = s.msgRepo.Save(context.Background(), companyID, string(evt.Info.ID), evt.Info.Sender.String(), evt.Info.Chat.String(), msgType, content, string(payloadBytes), "received")
+
+	picURL := ""
+	if pic, err := cli.GetProfilePictureInfo(evt.Info.Sender, nil); err == nil && pic != nil {
+		picURL = pic.URL
+	}
+	_ = s.contactRepo.Upsert(context.Background(), companyID, evt.Info.Sender.String(), evt.Info.PushName, evt.Info.Sender.User, picURL)
 	if evt.Info.Chat.Server == waTypes.GroupServer {
 		_ = s.groupRepo.Upsert(context.Background(), companyID, evt.Info.Chat.String(), evt.Info.PushName)
+	}
+
+	switch evt.Info.Edit {
+	case waTypes.EditAttributeMessageEdit:
+		_ = s.msgRepo.UpdateStatus(context.Background(), companyID, string(evt.Info.ID), "edited")
+	case waTypes.EditAttributeSenderRevoke, waTypes.EditAttributeAdminRevoke:
+		_ = s.msgRepo.UpdateStatus(context.Background(), companyID, string(evt.Info.ID), "deleted")
 	}
 
 	out := IncomingMessage{
@@ -252,6 +268,22 @@ func (s *Service) handleIncoming(companyID string, cli *whatsmeow.Client, evt *w
 	}
 	body, _ := json.Marshal(out)
 	_ = s.mq.Publish("", "wpp:received", body)
+}
+
+func (s *Service) handleReceipt(companyID string, evt *waEvents.Receipt) {
+	var status string
+	switch evt.Type {
+	case waTypes.ReceiptTypeDelivered, waTypes.ReceiptTypeSender:
+		status = "delivered"
+	case waTypes.ReceiptTypeRead, waTypes.ReceiptTypeReadSelf, waTypes.ReceiptTypePlayed:
+		status = "read"
+	}
+	if status == "" {
+		return
+	}
+	for _, id := range evt.MessageIDs {
+		_ = s.msgRepo.UpdateStatus(context.Background(), companyID, string(id), status)
+	}
 }
 
 func (s *Service) sendMessage(ctx context.Context, cli *whatsmeow.Client, m *OutgoingMessage) error {
@@ -327,7 +359,8 @@ func (s *Service) sendMessage(ctx context.Context, cli *whatsmeow.Client, m *Out
 
 	resp, err := cli.SendMessage(ctx, to, msg)
 	if err == nil {
-		_ = s.msgRepo.Save(ctx, m.CompanyID, resp.ID, cli.Store.ID.String(), to.String(), m.Type, m.Message)
+		payloadBytes, _ := protojson.Marshal(msg)
+		_ = s.msgRepo.Save(ctx, m.CompanyID, resp.ID, cli.Store.ID.String(), to.String(), m.Type, m.Message, string(payloadBytes), "sent")
 	}
 	return err
 }
